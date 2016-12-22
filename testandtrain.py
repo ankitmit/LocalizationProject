@@ -416,7 +416,7 @@ def varyGridResolutions(data_points_count, trans_count):
         euclid_dist = testModelUnsupervisedLearning(model, testing_data, testing_data_loc, lat_diff, lon_diff, min_lat, min_lon, res)
         # model = trainModelSuperVisedLearning(training_data_loc, training_data)
         # euclid_dist = testModelSuperVisedLearning(model, testing_data, testing_data_loc)
-        med = median(euclid_dist) - 200
+        med = median(euclid_dist)
         med_err.append(med)
         print med
 
