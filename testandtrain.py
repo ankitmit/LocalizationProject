@@ -18,6 +18,7 @@ prev_row_count = 0
 current_row_count = 0
 aws_base_url = 'http://wireless.uufjdwcjme.us-west-2.elasticbeanstalk.com/rest/test/'
 
+
 class row:
     def __init__(self, lat, lon, rssi):
         self.lat = lat
@@ -26,12 +27,12 @@ class row:
 
     def processRowInstance(self):
         row_text = ""
-        row_text += str(self.lat)+'`'+str(self.lon)+'`'
+        row_text += str(self.lat) + '`' + str(self.lon) + '`'
         i = 0
         temp = ""
         l_rssi = len(self.rssi)
         while i < l_rssi:
-            if(i == l_rssi -1):
+            if (i == l_rssi - 1):
                 temp += str(self.rssi[i])
             else:
                 temp += str(self.rssi[i]) + ','
@@ -39,12 +40,13 @@ class row:
         row_text += temp
         return row_text
 
+
 def generateMeanForTraining(tower_cords, grids_res, min_lat, max_lat, min_long, max_long):
     i = 0
-    mean =[]
+    mean = []
     grids_size = grids_res ** 2
     lat_diff = float(math.fabs(max_lat - min_lat)) / grids_res
-    lon_diff = float(math.fabs(max_long -min_long)) / grids_res
+    lon_diff = float(math.fabs(max_long - min_long)) / grids_res
     while i < grids_size:
         lat_cord = min_lat + (i / grids_res) * lat_diff
         lon_cord = min_long + (i % grids_res) * lon_diff
@@ -63,22 +65,25 @@ def generateMeanForTraining(tower_cords, grids_res, min_lat, max_lat, min_long, 
         i += 1
     return mean
 
+
 def haversine(lon1, lat1, lon2, lat2):
     # convert decimal degrees to radians
     lon1, lat1, lon2, lat2 = map(math.radians, [lon1, lat1, lon2, lat2])
     dlon = lon2 - lon1
     dlat = lat2 - lat1
-    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
     c = 2 * math.asin(math.sqrt(a))
-    r = 6371 # Radius of earth in kilometers
+    r = 6371  # Radius of earth in kilometers
     return c * r
 
-def generateData(data_points_count, trans_count, distance_in_km = 1.5):
+
+def generateData(data_points_count, trans_count, distance_in_km=1.5):
     if trans_count >= int(math.sqrt(data_points_count)):
         print 'Transmitters occupying more area'
 
     return generateDataForOneIteration(data_points_count, trans_count, distance_in_km)
-    #return powers
+    # return powers
+
 
 def generateRandomTowers(all_locations, trans_count):
     loc_count = len(all_locations)
@@ -89,20 +94,21 @@ def generateRandomTowers(all_locations, trans_count):
     tower_locations = random.sample(xrange(loc_count), trans_count)
     return tower_locations
 
-def calculateDistance(i, j, k ,l):
-    return math.sqrt((math.pow((k -i),2)) + math.pow((l-j), 2))
+
+def calculateDistance(i, j, k, l):
+    return math.sqrt((math.pow((k - i), 2)) + math.pow((l - j), 2))
+
 
 def generateDataForOneIteration(dim, trans_count, distance_in_km):
     all_locations = generateLocationVector(dim, distance_in_km)
     tower_indices = generateRandomTowers(all_locations, trans_count)
 
-    #Populate the co-ordinates where towers are present so that u dont calculate path loss for those cells
+    # Populate the co-ordinates where towers are present so that u dont calculate path loss for those cells
     tower_cords = []
     i = 0
     while i < trans_count:
         tower_cords.append(all_locations[tower_indices[i]])
         i += 1
-
 
     powers = []
     i = 0
@@ -138,9 +144,10 @@ def generateDataForOneIteration(dim, trans_count, distance_in_km):
                 curr_power = -113
             temp.append(curr_power)
             j += 1
-        powers.append(row(all_locations[i][0], all_locations[i][1],temp))
+        powers.append(row(all_locations[i][0], all_locations[i][1], temp))
         i += 1
     return powers, min_lat, min_long, max_lat, max_long, tower_cords
+
 
 def deleteAllRowsFromTable():
     global aws_base_url
@@ -148,8 +155,9 @@ def deleteAllRowsFromTable():
     if current_row_count > 0:
         url = aws_base_url + 'processRequest?request=1'
         myResponse = requests.get(url)
-        if(myResponse.ok):
+        if (myResponse.ok):
             print "All rows from table deleted\n"
+
 
 def populateDataBase(data_points_count, trans_count):
     global aws_base_url
@@ -161,17 +169,18 @@ def populateDataBase(data_points_count, trans_count):
     i = 0
     j = 0
     while i < total_len:
-        wait_time = random.randint(0,2)/ 10
+        wait_time = random.randint(0, 2) / 10
         time.sleep(wait_time)
         row_text = powers[my_randoms[j]].processRowInstance()
-        temp = url+row_text
+        temp = url + row_text
         myResponse = requests.get(temp)
-        #print temp
+        # print temp
         if not myResponse.ok:
             print "Insert failed for the row values " + row_text + "\nExiting the program\n"
             exit(0)
         i += 1
         j += 1
+
 
 def readDataFromTables():
     global aws_base_url
@@ -192,21 +201,24 @@ def readDataFromTables():
 
     return loc, rssi_data
 
+
 def trainModelSuperVisedLearning(loc_training_data, rssi_training_data):
     model = GaussianNB()
     model.fit(rssi_training_data, loc_training_data)
     print "Supervised learning Model trained"
     return model
 
+
 def trainModelUnsupervisedLearning(rssi_training_data, resolution, tower_cords, min_lat, min_lon, max_lat, max_lon):
     number_of_clusters = resolution ** 2
     model = mixture.GMM(n_components=number_of_clusters, covariance_type='full')
-    #model.means_ = generateMeanForTraining(tower_cords, resolution, min_lat, max_lat, min_lon, max_lon)
+    # model.means_ = generateMeanForTraining(tower_cords, resolution, min_lat, max_lat, min_lon, max_lon)
     model.fit(rssi_training_data)
     output = open('data.pkl', 'w')
     pickle.dump(model, output)
     output.close()
     return model
+
 
 def testModelSuperVisedLearning(model, test_data, actual_loc_data):
     test_loc_data = model.predict(test_data)
@@ -218,18 +230,20 @@ def testModelSuperVisedLearning(model, test_data, actual_loc_data):
         i += 1
     return euclid_dist
 
+
 def testModelUnsupervisedLearning(model, test_data, actual_loc_data, lat_diff, lon_diff, min_lat, min_lon, res):
     predicted_loc_cluster = model.predict(test_data)
     euclid_dist = []
     j = 0
     while j < len(predicted_loc_cluster):
         predicted_loc = ''
-        predicted_loc += str(min_lat + predicted_loc_cluster[j]/res * lat_diff) + ','
+        predicted_loc += str(min_lat + predicted_loc_cluster[j] / res * lat_diff) + ','
         predicted_loc += str(min_lon + predicted_loc_cluster[j] % res * lon_diff)
         dist = calculateDistBetweenLocations(actual_loc_data[j], predicted_loc) * 1000
         euclid_dist.append(dist)
         j += 1
     return euclid_dist
+
 
 def getRowCount():
     global aws_base_url
@@ -237,9 +251,10 @@ def getRowCount():
     myResponse = requests.get(url)
     return myResponse.content
 
+
 def startAppInLearningmode():
     global model, prev_row_count, current_row_count, thresh_hold_row_count, resolution
-    if thresh_hold_row_count == 0 :
+    if thresh_hold_row_count == 0:
         print 'Refer to the program usage.'
         help_message()
         exit(0)
@@ -250,17 +265,19 @@ def startAppInLearningmode():
         exit(0)
     if current_row_count - long(prev_row_count) > thresh_hold_row_count:
         prev_row_count = current_row_count
-        trained_model = trainModel()
+        trained_model = trainModelSuperVisedLearning()
         output = open('data.pkl', 'w')
         pickle.dump(trained_model, output)
         output.close()
-            #time.sleep(3)
+        # time.sleep(3)
+
 
 def startAppInClientMode():
     pkl_file = open('data.pkl', 'r')
     model = pickle.load(pkl_file)
-    result = testModel(model)
+    result = testModelForAllDataPoints(model)
     return result
+
 
 def help_message():
     print "Command line for the application must follow the below format :"
@@ -272,6 +289,7 @@ def help_message():
     print "\ttestandtrain.py -p 1 -t <trans_count> -r <grid_resolution>"
     print "Test all data points:"
     print "\ttestandtrain.py -e 1"
+
 
 def main(argv):
     data_points_count = 0
@@ -317,12 +335,13 @@ def main(argv):
         result = startAppInClientMode(test_data)
         print result
     elif is_explore_mode == True:
-        #generateAnalysisReports(data_points_count, trans_count, 6, res)
-        #varyTransmitters(data_points_count)
+        # generateAnalysisReports(data_points_count, trans_count, 6, res)
+        # varyTransmitters(data_points_count)
         varyGridResolutions(data_points_count, trans_count)
-        #varyTestingFraction(data_points_count, trans_count)
+        # varyTestingFraction(data_points_count, trans_count)
     elif populate_db == True:
         populateDataBase(data_points_count, trans_count)
+
 
 def calculateDistBetweenLocations(loc1, loc2):
     x = float(loc1.split(',')[0])
@@ -331,6 +350,7 @@ def calculateDistBetweenLocations(loc1, loc2):
     t_y = float(loc2.split(',')[1])
     dist = haversine(t_x, t_y, x, y)
     return dist
+
 
 def testModelForAllDataPoints():
     pkl_file = open('data.pkl', 'r')
@@ -341,24 +361,25 @@ def testModelForAllDataPoints():
     loc_diff_dist = []
     while i < row_count:
         test_data = rssi_data[i]
-        #test_data = Utils.remove_unwanted_white(test_data)
+        # test_data = Utils.remove_unwanted_white(test_data)
         if len(test_data) > 0:
-            predicted_loc_data = testModel(model, test_data)
+            predicted_loc_data = testModelSuperVisedLearning(model, test_data, actual_loc_data)
             dist = calculateDistBetweenLocations(actual_loc_data[i], predicted_loc_data)
             loc_diff_dist.append(dist)
         i += 1
     print loc_diff_dist
     plt.plot(np.sort(loc_diff_dist), np.linspace(0, 1, len(loc_diff_dist), endpoint=False))
 
+
 def generateLocationVector(number_of_data_points, distance_in_km):
-    #convert radius to miles
+    # convert radius to miles
     radius = distance_in_km * 0.621371 * 1000
-    #convert radius to degree
+    # convert radius to degree
     r = float(radius) / 111300
-    #Center coordinates of StonyBrook as per Google maps
+    # Center coordinates of StonyBrook as per Google maps
     x0 = 40.90
     y0 = -73.125
-    # Choose number of Lat Long to be generated    
+    # Choose number of Lat Long to be generated
     all_locations = []
     for i in range(1, number_of_data_points + 1):
         temp_loc = []
@@ -376,6 +397,7 @@ def generateLocationVector(number_of_data_points, distance_in_km):
         temp_loc.append(yLong)
         all_locations.append(temp_loc)
     return all_locations
+
 
 def splitData(consolidate_powers, percent):
     total = len(consolidate_powers)
@@ -398,22 +420,23 @@ def splitData(consolidate_powers, percent):
             train_loc.append(loc)
         i += 1
 
-
     return test_data, train_data, test_loc, train_loc
 
-#Vary Grid resolutions resulting in varying clusters count for unsupervised learning
+
+# Vary Grid resolutions resulting in varying clusters count for unsupervised learning
 def varyGridResolutions(data_points_count, trans_count):
     print 'Varying Grid resolution'
     powers, min_lat, min_lon, max_lat, max_lon, tower_cords = generateData(data_points_count, trans_count)
     testing_data, training_data, testing_data_loc, training_data_loc = splitData(powers, 0.1)
     grid_res = [10, 20, 30, 40, 50]
-    #grid_res = [10]
+    # grid_res = [10]
     med_err = []
     for res in grid_res:
-        lat_diff = float(math.fabs(max_lat - min_lat))/res
-        lon_diff = float(math.fabs(max_lon - min_lon))/res
+        lat_diff = float(math.fabs(max_lat - min_lat)) / res
+        lon_diff = float(math.fabs(max_lon - min_lon)) / res
         model = trainModelUnsupervisedLearning(training_data, res, tower_cords, min_lat, min_lon, max_lat, max_lon)
-        euclid_dist = testModelUnsupervisedLearning(model, testing_data, testing_data_loc, lat_diff, lon_diff, min_lat, min_lon, res)
+        euclid_dist = testModelUnsupervisedLearning(model, testing_data, testing_data_loc, lat_diff, lon_diff, min_lat,
+                                                    min_lon, res)
         # model = trainModelSuperVisedLearning(training_data_loc, training_data)
         # euclid_dist = testModelSuperVisedLearning(model, testing_data, testing_data_loc)
         med = median(euclid_dist)
@@ -425,10 +448,11 @@ def varyGridResolutions(data_points_count, trans_count):
     plt.plot(grid_res, med_err)
     plt.show()
 
-#Vary number of transmitters to be considered for data generation
+
+# Vary number of transmitters to be considered for data generation
 def varyTransmittersCount(data_points_count):
     print 'Varying Transmitters count'
-    trans = [4,6,8,10,12,15]
+    trans = [4, 6, 8, 10, 12, 15]
     res = 20
     med_err = []
     for trans_count in trans:
@@ -440,16 +464,17 @@ def varyTransmittersCount(data_points_count):
         euclid_dist = testModelUnsupervisedLearning(model, testing_data, lat_diff, lon_diff)
         med = median(euclid_dist)
         med_err.append(med)
-        
+
     plt.xlabel('Number of Transmitters', fontsize=12)
     plt.ylabel('Median error(meters)', fontsize=12)
     plt.plot(trans, med_err)
     plt.show()
 
-#Vary the percentage of data to be used for training and testing
+
+# Vary the percentage of data to be used for training and testing
 def varyTestingFraction(data_points_count, trans_count):
     print 'Varying Percent of testing training data split'
-    fractions = [0.1,0.2,0.3,0.4,0.5]
+    fractions = [0.1, 0.2, 0.3, 0.4, 0.5]
     res = 20
     med_err = []
     powers, min_lat, min_lon, max_lat, max_lon, tower_cords = generateData(data_points_count, trans_count)
@@ -458,7 +483,8 @@ def varyTestingFraction(data_points_count, trans_count):
     for fraction in fractions:
         testing_data, training_data, testing_data_loc, training_data_loc = splitData(powers, fraction)
         model = trainModelUnsupervisedLearning(training_data, res, tower_cords, min_lat, min_lon, max_lat, max_lon)
-        euclid_dist = testModelUnsupervisedLearning(model, testing_data, testing_data_loc, lat_diff, lon_diff, min_lat, min_lon, res)
+        euclid_dist = testModelUnsupervisedLearning(model, testing_data, testing_data_loc, lat_diff, lon_diff, min_lat,
+                                                    min_lon, res)
         med = median(euclid_dist)
         med_err.append(med)
     plt.xlabel('Percentage of data points used as testing data', fontsize=12)
@@ -466,13 +492,14 @@ def varyTestingFraction(data_points_count, trans_count):
     plt.plot(fractions, med_err)
     plt.show()
 
-#Vary the radius of the area to be considered for data points generation
+
+# Vary the radius of the area to be considered for data points generation
 def varyRadiusForAnalysis(number_of_data_points, trans_count):
-    dist = [1.0,1.5,2.0,2.5,3.0,3.5,4.0]
+    dist = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]
     res = 20
     med_err = []
     for d in dist:
-        powers, min_lat, min_lon, max_lat, max_lon = generateData(data_points_count, trans_count, d)
+        powers, min_lat, min_lon, max_lat, max_lon = generateData(number_of_data_points, trans_count, d)
         lat_diff = float(math.fabs(max_lat - min_lat)) / res
         lon_diff = float(math.fabs(max_lon - min_lon)) / res
         testing_data, training_data, testing_data_loc, training_data_loc = splitData(powers, 0.1)
@@ -480,15 +507,17 @@ def varyRadiusForAnalysis(number_of_data_points, trans_count):
         euclid_dist = testModelUnsupervisedLearning(model, testing_data, lat_diff, lon_diff)
         med = median(euclid_dist)
         med_err.append(med)
-        
+
     plt.xlabel('Radius in KM', fontsize=12)
     plt.ylabel('Median error(meters)', fontsize=12)
     plt.plot(dist, med_err)
     plt.show()
 
-#return median of a list
+
+# return median of a list
 def median(lst):
     return np.median(np.array(lst))
 
+
 if __name__ == '__main__':
-   main(sys.argv[1:])
+    main(sys.argv[1:])
